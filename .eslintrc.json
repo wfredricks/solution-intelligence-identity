@@ -16,5 +16,5 @@
     "@typescript-eslint/no-explicit-any": "warn",
     "prefer-const": "error"
   },
-  "ignorePatterns": ["dist", "coverage", "node_modules"]
+  "ignorePatterns": ["dist", "coverage", "node_modules", "src/auth/_deferred/**"]
 }

@@ -1,7 +1,7 @@
 {
   "name": "@solution-intelligence/identity",
-  "version": "0.1.0-pre",
-  "description": "SI/I — bangauth wrapper enforcing Solution Intelligence's 5-role permission matrix (operator, analyst, reviewer, consumer, admin). Stage 1b scaffold.",
+  "version": "0.2.0-pre",
+  "description": "SI/I — Solution Intelligence identity service. Wraps the bangauth archetype (passwordless email-and-code authentication with monthly-rotating HMAC tokens) and adds SI's 5-role permission matrix per MODEL.md §6.",
   "author": "William Fredricks",
   "license": "Apache-2.0",
   "repository": {
@@ -18,6 +18,7 @@
     "authentication",
     "authorization",
     "bangauth",
+    "archetype",
     "typescript"
   ],
   "type": "module",
@@ -28,12 +29,20 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
     }
   },
-  "files": ["dist", "LICENSE", "README.md", "CHANGELOG.md", "SECURITY.md"],
+  "bin": {
+    "si-identity": "dist/server.js"
+  },
+  "files": ["dist", "LICENSE", "README.md", "CHANGELOG.md", "SECURITY.md", "ARCHETYPE.md"],
   "engines": { "node": ">=20" },
   "scripts": {
     "build": "tsup",
+    "start": "node dist/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -44,6 +53,10 @@
     "format:check": "prettier --check src tests",
     "clean": "rm -rf dist coverage",
     "prepublishOnly": "npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.2",
+    "hono": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
