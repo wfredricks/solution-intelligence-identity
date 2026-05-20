@@ -8,6 +8,9 @@ dist/
 # coverage
 coverage/
 
+# runtime data (grants ledger, audit JSONL, etc.)
+data/
+
 # OS
 .DS_Store
 
