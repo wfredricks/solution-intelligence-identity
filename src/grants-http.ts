@@ -16,25 +16,39 @@ import type { Context } from 'hono';
 import { appendGrant, appendRevoke, listGrants } from './grants.js';
 import { emitGrantEvent, emitRevokeEvent } from './audit.js';
 import { ROLES, type Role } from './types.js';
+import { verifyToken } from './auth/token.js';
+import { getAuthKeyStore } from './auth/server.js';
 
-// ─── Owner gate (v0.1) ───────────────────────────────────────────────────────
+// ─── Owner gate ──────────────────────────────────────────────────────────────
 
 /**
- * In v0.1 we accept the `X-SI-Actor` header as the asserted Owner identity.
+ * Resolve the acting user from the request's bearer token.
  *
- * // Why: Full Owner-gating requires resolving the actor's token, then
- * // checking that they hold the Owner role for the target project. The token
- * // resolution path needs the auth router; full gating arrives in Stage 2b
- * // (CLI) when CLI commands carry the token directly. For Stage 2a, we
- * // accept the header so the server is callable end-to-end in tests and
- * // local dev; the gate is wired in but lenient.
+ * // Why: As of Stage 2b the grant/revoke endpoints derive the actor from a
+ * // signed token via the same path as `/resolve`, rather than trusting an
+ * // `X-SI-Actor` header. The header shortcut was a Stage 2a stop-gap so the
+ * // server was callable before the CLI shipped; now that the CLI carries
+ * // real tokens, the shortcut is retired. Passing `X-SI-Actor` is silently
+ * // ignored — we read only `Authorization: Bearer <token>`.
  *
- * Returns the asserted actor or null if missing.
+ * Returns the resolved userId (email) on success, or a structured failure
+ * the caller turns into a 401.
  */
-function assertedActor(c: Context): string | null {
-  const v = c.req.header('x-si-actor') ?? c.req.header('X-SI-Actor');
-  if (!v) return null;
-  return v.toLowerCase().trim();
+async function actorFromToken(
+  c: Context,
+): Promise<{ ok: true; userId: string } | { ok: false; reason: string }> {
+  const authHeader =
+    c.req.header('authorization') ?? c.req.header('Authorization');
+  if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
+    return { ok: false, reason: 'Authentication required' };
+  }
+  const token = authHeader.slice('bearer '.length).trim();
+  if (!token) return { ok: false, reason: 'Authentication required' };
+  const verified = await verifyToken(token, getAuthKeyStore());
+  if (!verified.valid) {
+    return { ok: false, reason: verified.reason };
+  }
+  return { ok: true, userId: verified.email };
 }
 
 function isRole(value: unknown): value is Role {
@@ -53,13 +67,14 @@ interface GrantBody {
  * Issue a new role grant.
  *
  * Body: { projectId, userId, role }
- * Header: `X-SI-Actor: <ownerUserId>`
+ * Header: `Authorization: Bearer <token>` (Stage 2b)
  */
 export async function grantHandler(c: Context) {
-  const actor = assertedActor(c);
-  if (!actor) {
-    return c.json({ error: 'Missing X-SI-Actor header' }, 401);
+  const actorResult = await actorFromToken(c);
+  if (!actorResult.ok) {
+    return c.json({ error: actorResult.reason }, 401);
   }
+  const actor = actorResult.userId;
 
   let body: GrantBody;
   try {
@@ -105,13 +120,14 @@ export async function grantHandler(c: Context) {
 /**
  * Revoke an existing grant by id.
  *
- * Header: `X-SI-Actor: <ownerUserId>`
+ * Header: `Authorization: Bearer <token>` (Stage 2b)
  */
 export async function revokeHandler(c: Context) {
-  const actor = assertedActor(c);
-  if (!actor) {
-    return c.json({ error: 'Missing X-SI-Actor header' }, 401);
+  const actorResult = await actorFromToken(c);
+  if (!actorResult.ok) {
+    return c.json({ error: actorResult.reason }, 401);
   }
+  const actor = actorResult.userId;
 
   const grantId = c.req.param('grantId');
   if (!grantId) {

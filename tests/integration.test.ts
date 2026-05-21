@@ -74,57 +74,70 @@ describe('SI/I integration', () => {
   });
 
   it('walks the full request-code → verify-code → grant → resolve → revoke flow', async () => {
-    // 1) Request a code
-    const req = await jpost('/auth/request-code', { email: 'alice@x.com' });
-    expect(req.status).toBe(200);
+    // Why: Stage 2b retired the `X-SI-Actor` header. The actor now comes from
+    // a bearer token, just like `/resolve`. We log in BOTH alice (target of
+    // a grant) and root (the actor doing the granting) so the test exercises
+    // the production path end-to-end.
 
-    // 2) Verify the code
-    const verify = await jpost('/auth/verify-code', {
+    // 1a) Request a code for alice
+    const aliceReq = await jpost('/auth/request-code', { email: 'alice@x.com' });
+    expect(aliceReq.status).toBe(200);
+
+    // 1b) Verify alice's code
+    const aliceVerify = await jpost('/auth/verify-code', {
       email: 'alice@x.com',
       code: '123456',
     });
-    expect(verify.status).toBe(200);
-    const verifyBody = verify.data as { authenticated: boolean; email: string; token: string };
-    expect(verifyBody.authenticated).toBe(true);
-    expect(verifyBody.email).toBe('alice@x.com');
-    expect(typeof verifyBody.token).toBe('string');
-    const token = verifyBody.token;
+    expect(aliceVerify.status).toBe(200);
+    const aliceBody = aliceVerify.data as { authenticated: boolean; email: string; token: string };
+    expect(aliceBody.authenticated).toBe(true);
+    const aliceToken = aliceBody.token;
 
-    // 3) Grant alice the Operator role
+    // 1c) Same flow for root
+    await jpost('/auth/request-code', { email: 'root@x.com' });
+    const rootVerify = await jpost('/auth/verify-code', {
+      email: 'root@x.com',
+      code: '123456',
+    });
+    expect(rootVerify.status).toBe(200);
+    const rootToken = (rootVerify.data as { token: string }).token;
+
+    // 2) Root grants alice the Operator role, authenticating via bearer token
     const grant = await jpost(
       '/grants',
       { projectId: 'p-integration', userId: 'alice@x.com', role: 'Operator' },
-      { 'x-si-actor': 'root@x.com' },
+      { authorization: `Bearer ${rootToken}` },
     );
     expect(grant.status).toBe(201);
-    const grantBody = grant.data as { grantId: string; role: string };
+    const grantBody = grant.data as { grantId: string; role: string; grantedBy: string };
     expect(grantBody.role).toBe('Operator');
+    expect(grantBody.grantedBy).toBe('root@x.com');
 
-    // 4) Resolve alice's token — should report Operator
-    const resolve1 = await jpost('/resolve', { token });
+    // 3) Resolve alice's token — should report Operator
+    const resolve1 = await jpost('/resolve', { token: aliceToken });
     expect(resolve1.status).toBe(200);
     const resolveBody1 = resolve1.data as { userId: string; effectiveRoles: string[] };
     expect(resolveBody1.userId).toBe('alice@x.com');
     expect(resolveBody1.effectiveRoles).toContain('Operator');
 
-    // 5) Revoke the grant
+    // 4) Root revokes the grant, again authenticating via bearer token
     const revoke = await jpost(
       `/grants/${grantBody.grantId}/revoke`,
       {},
-      { 'x-si-actor': 'root@x.com' },
+      { authorization: `Bearer ${rootToken}` },
     );
     expect(revoke.status).toBe(200);
     const revokeBody = revoke.data as { revoked: boolean };
     expect(revokeBody.revoked).toBe(true);
 
-    // 6) Resolve alice's token again — Operator is gone
-    const resolve2 = await jpost('/resolve', { token });
+    // 5) Resolve alice's token again — Operator is gone
+    const resolve2 = await jpost('/resolve', { token: aliceToken });
     expect(resolve2.status).toBe(200);
     const resolveBody2 = resolve2.data as { effectiveRoles: string[] };
     expect(resolveBody2.effectiveRoles).not.toContain('Operator');
   });
 
-  it('rejects /grants without X-SI-Actor', async () => {
+  it('rejects /grants without a bearer token', async () => {
     const res = await jpost('/grants', {
       projectId: 'p-integration',
       userId: 'eve@x.com',
@@ -133,11 +146,38 @@ describe('SI/I integration', () => {
     expect(res.status).toBe(401);
   });
 
+  it('rejects /grants with an invalid bearer token', async () => {
+    const res = await jpost(
+      '/grants',
+      { projectId: 'p-integration', userId: 'eve@x.com', role: 'Owner' },
+      { authorization: 'Bearer not-a-real-token' },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('ignores X-SI-Actor and still requires a bearer token', async () => {
+    // Why: Regression test for the Stage 2b retirement — a client still
+    // sending the old header gets a 401, not silent acceptance.
+    const res = await jpost(
+      '/grants',
+      { projectId: 'p-integration', userId: 'eve@x.com', role: 'Owner' },
+      { 'x-si-actor': 'root@x.com' },
+    );
+    expect(res.status).toBe(401);
+  });
+
   it('rejects /grants with an invalid role', async () => {
+    // Mint a real token first so we get past the bearer gate.
+    await jpost('/auth/request-code', { email: 'root@x.com' });
+    const rootVerify = await jpost('/auth/verify-code', {
+      email: 'root@x.com',
+      code: '123456',
+    });
+    const rootToken = (rootVerify.data as { token: string }).token;
     const res = await jpost(
       '/grants',
       { projectId: 'p-integration', userId: 'eve@x.com', role: 'Wizard' },
-      { 'x-si-actor': 'root@x.com' },
+      { authorization: `Bearer ${rootToken}` },
     );
     expect(res.status).toBe(400);
   });
