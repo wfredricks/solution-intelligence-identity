@@ -38,6 +38,7 @@ import { MemoryUserStore } from './adapters/users-memory.js';
 import { isDomainAllowed } from './domain.js';
 import { generateToken, currentMonth } from './token.js';
 import type { KeyStore } from './types.js';
+import { getSiIdentityPublisher } from '../events/si-publisher.js';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -250,6 +251,24 @@ authRouter.post('/verify-code', async (c) => {
     const key = await keyStore().getCurrentKey();
     const month = currentMonth();
     const token = generateToken(email, month, key, config().projectId);
+
+    // Why: events-spine Service S1 — emit si.identity.login.completed
+    // as observability for downstream consumers (Scribe, Completeness
+    // Agent, etc.). Per events-spine C5 the payload carries NO token
+    // and NO login code; just the email and the projectId. Publish
+    // is wrapped in graceful no-op semantics inside the SI publisher
+    // wrapper, so a NATS outage does NOT fail the user's login.
+    try {
+      getSiIdentityPublisher().publishLoginCompleted({
+        email,
+        projectId: config().projectId,
+      });
+    } catch (publishErr) {
+      // Why: belt-and-braces. The wrapper already swallows; this
+      // outer catch is the second seam protecting the user-facing
+      // response from any defect in the publish path.
+      console.warn('verify-code: event publish failed (non-fatal)', publishErr);
+    }
 
     return c.json({ authenticated: true, email, token });
   } catch (err) {

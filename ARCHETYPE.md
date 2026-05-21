@@ -23,6 +23,52 @@ This pattern is adopted for the SI runtime because:
 
 ## Adopted archetypes
 
+### events-spine → `src/events/`
+
+| Field | Value |
+|---|---|
+| **Source repo** | `https://github.com/wfredricks/archetypes` |
+| **Source commit** | `1b334abbb354fa89dd758225e960ce5f58dcf365` |
+| **Source version** | events-spine v0.1.0-pre (tag `events-spine-v0.1.0-pre`) |
+| **Adopted on** | 2026-05-21 (Stage 2d) |
+| **Pattern** | events-spine — composite archetype delivering a typed NATS publisher (Service S1), subscriber (S2), and Scribe canonical event recorder (S3-S6). SI/I is a **publisher-only** adoption for v0.2.2-pre; subscribers, Scribe, and MCP server are out of scope for this stage. |
+
+**Files adopted** (provenance headers in each file cite this commit):
+
+- `src/events/types.ts` (verbatim) — DataObjects DO1 (`ScribeEvent`),
+  DO2 (`SubjectFilter`), plus protocol-level filter types.
+- `src/events/publisher/publisher.ts` (verbatim) — the publisher
+  primitive realizing Service S1.
+- `src/events/publisher/index.ts` (verbatim) — the primitive's barrel.
+
+**SI-owned composition on top of events-spine:**
+
+- `src/events/si-publisher.ts` — the adopter-owned wrapper. Composes
+  the events-spine publisher with adopter-namespaced configuration
+  (subject prefix `si.identity`, publisher id
+  `solution-intelligence-identity`) and exposes typed methods for the
+  three events SI/I emits. Adds graceful-no-op semantics so a NATS
+  outage does NOT fail user-facing operations.
+- `tests/events/si-publisher.test.ts` — 8 unit tests.
+- `tests/integration/events-emit.test.ts` — 3 integration tests
+  asserting real-NATS emission and Constraint C5 (no credentials in
+  payloads).
+
+**Configuration-only adoption.** Per events-spine’s primitive-composition
+stance the reference-impl carries no `@adopt:` markers; adopters
+configure at runtime via constructor options. No file under
+`src/events/publisher/` was modified beyond adding the provenance JSDoc
+header above the existing one.
+
+**Refresh policy.** Review at every `events-spine` minor version bump.
+Emergency-refresh on any change to the canonical `ScribeEvent` shape or
+to Service S1.
+
+**Intended controls satisfied.** Operational observability for SI/I
+state changes (login, grant, revoke). Per events-spine C5 the event
+payloads are credential-free; the audit ledger (chainblocks) remains
+the correctness-bearing record.
+
 ### bangauth → `src/auth/`
 
 | Field | Value |

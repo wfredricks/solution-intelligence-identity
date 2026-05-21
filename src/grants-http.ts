@@ -18,6 +18,7 @@ import { emitGrantEvent, emitRevokeEvent } from './audit.js';
 import { ROLES, type Role } from './types.js';
 import { verifyToken } from './auth/token.js';
 import { getAuthKeyStore } from './auth/server.js';
+import { getSiIdentityPublisher } from './events/si-publisher.js';
 
 // ─── Owner gate ──────────────────────────────────────────────────────────────
 
@@ -108,6 +109,26 @@ export async function grantHandler(c: Context) {
       { projectId, userId, role, grantedBy: actor },
       auditBlock,
     );
+
+    // Why: events-spine Service S1 — emit si.identity.grant.recorded
+    // AFTER the audit and ledger writes both succeed. The audit row
+    // is the correctness record; this event is observability for
+    // downstream consumers (Scribe, future Completeness Agent). Per
+    // events-spine C5 the payload carries NO token — just the
+    // subject/principal/action/resource identifiers plus the audit-
+    // block sequence number for correlation.
+    try {
+      getSiIdentityPublisher().publishGrantRecorded({
+        actor,
+        projectId,
+        targetUserId: userId,
+        role,
+        auditBlockSeq: auditBlock,
+      });
+    } catch (publishErr) {
+      console.warn('grant: event publish failed (non-fatal)', publishErr);
+    }
+
     return c.json(grant, 201);
   } catch (err) {
     console.error('grant error:', err);
@@ -150,6 +171,22 @@ export async function revokeHandler(c: Context) {
       role: original.role,
     });
     const revoked = await appendRevoke(grantId, actor, auditBlock);
+
+    // Why: events-spine Service S1 — emit si.identity.revoke.recorded
+    // after the audit and ledger writes both succeed. Symmetric to
+    // grant.recorded. C5: no credentials in payload.
+    try {
+      getSiIdentityPublisher().publishRevokeRecorded({
+        actor,
+        projectId: original.projectId,
+        targetUserId: original.userId,
+        role: original.role,
+        auditBlockSeq: auditBlock,
+      });
+    } catch (publishErr) {
+      console.warn('revoke: event publish failed (non-fatal)', publishErr);
+    }
+
     return c.json(revoked);
   } catch (err) {
     console.error('revoke error:', err);

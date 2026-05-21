@@ -7,13 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2-pre] — 2026-05-21
+
+Stage 2d deliverable. SI/I adopts the `events-spine` archetype.
+
+### Added
+
+- **events-spine publisher derived into `src/events/`** with provenance
+  JSDoc headers citing the source archetype (`archetypes/events-spine`,
+  commit `1b334ab`, tag `events-spine-v0.1.0-pre`). Adoption is
+  configuration-only — the reference-impl files are copied verbatim
+  and the adopter-owned namespacing happens in
+  `src/events/si-publisher.ts`. See `ARCHETYPE.md` for the adoption
+  record.
+- **`src/events/si-publisher.ts`** — typed wrapper exposing
+  `publishLoginCompleted`, `publishGrantRecorded`,
+  `publishRevokeRecorded` for the SI/I event surface. Subject prefix
+  `si.identity` (adopter-owned). Publisher id
+  `solution-intelligence-identity`. Graceful no-op semantics so a
+  NATS outage does NOT fail user-facing operations.
+- **Event emission wired** into the three state-changing flows:
+  - `si.identity.login.completed` — emitted by `verify-code` after
+    a token is issued. Payload `{ email, projectId }`. No token or
+    code in the payload (events-spine C5).
+  - `si.identity.grant.recorded` — emitted by `POST /grants` after
+    the audit ledger and grant store both succeed. Payload
+    `{ actor, projectId, targetUserId, role, auditBlockSeq }`.
+  - `si.identity.revoke.recorded` — emitted by
+    `POST /grants/:id/revoke` symmetric to grant.
+- **Server boot** initializes the publisher; graceful shutdown
+  drains it.
+- **Integration test** (`tests/integration/events-emit.test.ts`)
+  boots a real `nats-server`, the SI/I server, and a NATS
+  subscriber. Verifies each event fires with the expected subject +
+  payload AND asserts no token/code/password appears in any
+  payload (events-spine C5 enforcement).
+- **Unit tests** (`tests/events/si-publisher.test.ts`) — 8 tests
+  covering subject names, payload shapes, C5 enforcement, and
+  graceful no-op behavior under both connect-failure and
+  publish-failure paths.
+- **Dependencies**: `nats@^2.28.0`, `uuid@^11.0.0`, `@types/uuid`.
+
 ### Changed
 
-- **`X-SI-Actor` header retired.** Grant/revoke endpoints now derive the
-  acting user from the bearer token via the same token-verification path as
-  `/resolve`. Passing the header is silently ignored. Required by
-  Stage 2b CLI work — the CLI carries real tokens, so the Stage 2a
-  stop-gap is no longer needed.
+- **`VERSION` bumped** from `0.2.0-pre` to `0.2.2-pre` (Stage 2d).
+  Note: `0.2.1-pre` was reserved for the `X-SI-Actor`-retirement
+  Stage 2b polish work and is folded forward.
 
 ## [0.2.0-pre] — 2026-05-20
 
