@@ -38,8 +38,17 @@
   "bin": {
     "si-identity": "dist/server.js"
   },
-  "files": ["dist", "LICENSE", "README.md", "CHANGELOG.md", "SECURITY.md", "ARCHETYPE.md"],
-  "engines": { "node": ">=20" },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "ARCHETYPE.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsup",
     "start": "node dist/server.js",
@@ -56,10 +65,13 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.2",
-    "hono": "^4.0.0"
+    "hono": "^4.0.0",
+    "nats": "^2.29.3",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "@vitest/coverage-v8": "^2.0.0",
