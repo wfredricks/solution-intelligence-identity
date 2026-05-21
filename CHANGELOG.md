@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`X-SI-Actor` header retired.** Grant/revoke endpoints now derive the
+  acting user from the bearer token via the same token-verification path as
+  `/resolve`. Passing the header is silently ignored. Required by
+  Stage 2b CLI work — the CLI carries real tokens, so the Stage 2a
+  stop-gap is no longer needed.
+
 ## [0.2.0-pre] — 2026-05-20
 
 Stage 2a deliverable. Per `build-history/BUILD-PLAN.md` and MODEL.md §6.
