@@ -12,7 +12,7 @@ import { VERSION, startServer } from '../src/index.js';
 describe('@solution-intelligence/identity', () => {
   it('exposes a version string', () => {
     expect(VERSION).toBeTypeOf('string');
-    expect(VERSION).toMatch(/^0\.2\.0-pre$/);
+    expect(VERSION).toMatch(/^0\.2\.2-pre$/);
   });
 
   it('startServer + close lifecycle works on port 0', async () => {

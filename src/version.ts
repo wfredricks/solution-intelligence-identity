@@ -7,4 +7,4 @@
  *
  * @requirement REQ-SI-NF-052 (JSDoc on exported symbols)
  */
-export const VERSION = '0.2.0-pre';
+export const VERSION = '0.2.2-pre';

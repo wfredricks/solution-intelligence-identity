@@ -1,6 +1,6 @@
 {
   "name": "@solution-intelligence/identity",
-  "version": "0.2.0-pre",
+  "version": "0.2.2-pre",
   "description": "SI/I — Solution Intelligence identity service. Wraps the bangauth archetype (passwordless email-and-code authentication with monthly-rotating HMAC tokens) and adds SI's 5-role permission matrix per MODEL.md §6.",
   "author": "William Fredricks",
   "license": "Apache-2.0",
