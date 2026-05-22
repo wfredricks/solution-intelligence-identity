@@ -92,6 +92,11 @@ describe('Token Engine', () => {
       expect(token.length).toBeGreaterThan(10);
 
       const result = await verifyToken(token, keyStore);
+      // Why: VerifyResult is a discriminated union; narrow with an
+      // assertion guard so TypeScript (under tsconfig.eslint.json after
+      // Phase 1a F4 pinned rootDir) can resolve `result.email`. The test
+      // already runs green at runtime; this is type-narrowing only.
+      if (!result.valid) throw new Error(`expected valid token, got: ${result.reason}`);
       expect(result.valid).toBe(true);
       expect(result.email).toBe('alice@test.com');
     });

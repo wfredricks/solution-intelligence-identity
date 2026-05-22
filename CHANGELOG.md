@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `tsconfig.eslint.json` pins `compilerOptions.rootDir: "."`, overriding the extended `tsconfig.json`'s `rootDir: "./src"`. Without this, every file under `tests/**/*` reported `TS6059: ... is not under 'rootDir'`. `npx tsc --noEmit -p tsconfig.eslint.json` now exits 0. Phase 1a F4.
+- `src/auth/__tests__/token.test.ts` adds an `if (!result.valid) throw` narrowing guard on `VerifyResult` so the test type-checks cleanly under the fixed tsconfig. Runtime behavior unchanged (the test already passed under `npm test`). Surfaced by F4 (pre-existing latent type error that was hidden by the TS6059 short-circuit).
+
+### Tests
+
+- `npm test`: 81/81 (unchanged).
+- `npm run lint`: clean.
+
 ## [0.2.2-pre] — 2026-05-21
 
 Stage 2d deliverable. SI/I adopts the `events-spine` archetype.
